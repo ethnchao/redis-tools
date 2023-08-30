@@ -198,7 +198,7 @@ func (this *RedisBigKeys) connect() error {
 		}
 	}(rdb)
 	infoStr := rdb.Info(this.Ctx).String()
-	if strings.Contains(infoStr, "ERR invalid password") {
+	if strings.Contains(infoStr, "ERR invalid password") || strings.Contains(infoStr, "NOAUTH Authentication required") {
 		return fmt.Errorf("「连接」- Redis登录失败：密码错误 ")
 	} else {
 		fmt.Println("「连接」- Redis登录成功.")
@@ -373,6 +373,13 @@ func (this *RedisBigKeys) analyze(options ...interface{}) error {
 	return nil
 }
 
+func shortString(str string, length int) string {
+	if len(str) > length {
+		return str[0:length] + "..."
+	}
+	return str
+}
+
 func (this *RedisBigKeys) report() {
 	fmt.Printf("\n# 扫描结果\n")
 	t := termtables.CreateTable()
@@ -380,12 +387,15 @@ func (this *RedisBigKeys) report() {
 	iter := this.topList.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
-		t.AddRow(object.GetKey(),
+		t.AddRow(
+			//shortString(object.GetKey(), 40),
+			object.GetKey(),
 			strings.ToTitle(object.GetType()),
 			strconv.Itoa(object.GetSize()),
 			bytefmt.FormatSize(uint64(object.GetSize())),
 			strconv.Itoa(object.GetElemCount()),
-			strconv.Itoa(object.GetDBIndex()))
+			strconv.Itoa(object.GetDBIndex()),
+		)
 	}
 	fmt.Println(t.Render())
 }
