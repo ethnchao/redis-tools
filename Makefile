@@ -1,13 +1,20 @@
 BINARY_NAME=redis-tools
 DIST=dist
 
-build:
-	#GOARCH=amd64 GOOS=darwin go build -o ${DIST}/${BINARY_NAME}-darwin main.go
+
+build: linux windows darwin
+
+darwin:
+	GOARCH=amd64 GOOS=darwin go build -o ${DIST}/${BINARY_NAME}-darwin main.go
+
+linux:
 	GOARCH=amd64 GOOS=linux go build -o ${DIST}/${BINARY_NAME}-linux main.go
-	#GOARCH=amd64 GOOS=windows go build -o ${DIST}/${BINARY_NAME}-windows main.go
+
+windows:
+	GOARCH=amd64 GOOS=windows go build -o ${DIST}/${BINARY_NAME}-windows main.go
 
 run: build
-	./${DIST}/${BINARY_NAME}
+	./${DIST}/${BINARY_NAME}-darwin
 
 clean:
 	go clean
