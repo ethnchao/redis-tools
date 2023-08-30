@@ -223,9 +223,38 @@ func (this *RedisBigKeys) connect() error {
 
 	if info["redis_mode"] == "standalone" {
 		fmt.Println("「连接」- 检测到Redis为 单机/哨兵模式...")
+		tmpHost := ""
+		tmpPort := ""
 		if info["role"] == "master" {
 			masters = append(masters, this.HostPort)
+			v, ok := info["slave0"]
+			if ok {
+				vArr := strings.Split(v, ",")
+				for i := range vArr {
+					item := vArr[i]
+					if strings.Contains(item, "ip=") {
+						tmpHost = strings.Split(item, "=")[1]
+					}
+					if strings.Contains(item, "port=") {
+						tmpPort = strings.Split(item, "=")[1]
+					}
+				}
+				if tmpHost != "" && tmpPort != "" {
+					slaves = append(slaves, tmpHost+":"+tmpPort)
+				}
+			}
 		} else {
+			v, ok := info["master_host"]
+			if ok {
+				tmpHost = v
+			}
+			v2, ok2 := info["master_port"]
+			if ok2 {
+				tmpPort = v2
+			}
+			if tmpHost != "" && tmpPort != "" {
+				masters = append(masters, tmpHost+":"+tmpPort)
+			}
 			slaves = append(slaves, this.HostPort)
 		}
 	} else if info["redis_mode"] == "cluster" {
