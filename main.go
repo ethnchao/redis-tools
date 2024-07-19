@@ -20,16 +20,18 @@ Options:
   -a          Redis host:port address
   -p          Redis password, default empty
   -n          Number of result, default 100
+  -rdb        RDB file path, if -a is provided, -rdb will omit.
   -regex      Using regex expression filter keys, default empty
   -no-expired Filter expired keys, default empty
   -use-master Use master node to analyze, default false
+  -no-delete  Don't delete work directory, default false
   -work-dir   Work directory, default to /tmp
 
 Examples:
 Parameters between '[' and ']' is optional
 1. find redis biggest keys
-  redis-tools [-m bigkey] -a 127.0.0.1:6379 [-p password] [-n 100] \
-	[-regex '^PREFIX\-.*'] [-no-expired] [-use-master] [-work-dir /opt]
+  redis-tools [-m bigkey] -a 127.0.0.1:6379 [-p password] [-n 100] [-rdb /foo/bar.db] \
+	[-regex '^PREFIX\-.*'] [-no-expired] [-use-master] [-no-delete] [-work-dir /opt]
 `
 
 type separators []string
@@ -43,7 +45,7 @@ func (s *separators) Set(value string) error {
 	return nil
 }
 
-func test() {
+func main() {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var module string
 	var addr string
@@ -54,6 +56,7 @@ func test() {
 	var useMaster bool
 	var workDir string
 	var rdbFile string
+	var noDelete bool
 	flagSet.StringVar(&module, "m", "bigkey", "module name")
 	flagSet.StringVar(&addr, "a", "", "redis host:port address")
 	flagSet.StringVar(&password, "p", "", "redis password")
@@ -62,7 +65,8 @@ func test() {
 	flagSet.BoolVar(&noExpired, "no-expired", false, "filter expired keys")
 	flagSet.BoolVar(&useMaster, "use-master", false, "use master nodes")
 	flagSet.StringVar(&workDir, "work-dir", "/tmp", "working directory")
-	flagSet.StringVar(&rdbFile, "f", "", "Use RDB file instead of Redis connection")
+	flagSet.StringVar(&rdbFile, "rdb", "", "Use RDB file instead of Redis connection")
+	flagSet.BoolVar(&noDelete, "no-delete", false, "Do not delete work directory")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 
 	if addr == "" {
@@ -85,12 +89,14 @@ func test() {
 	switch module {
 	case "bigkey":
 		tool := tools.RedisBigKeys{
-			Ctx:       ctx,
-			HostPort:  addr,
-			Password:  password,
-			UseMaster: useMaster,
-			WorkDir:   workDir,
-			RdbFile:   rdbFile,
+			Ctx:         ctx,
+			HostPort:    addr,
+			Password:    password,
+			NumOfResult: numOfResult,
+			UseMaster:   useMaster,
+			WorkDir:     workDir,
+			RdbFile:     rdbFile,
+			NoDelete:    noDelete,
 		}
 		tool.Run(options...)
 	default:
@@ -123,13 +129,17 @@ func Test_hexToUint64() {
 	log.Println("count", binary.BigEndian.Uint32(count))
 }
 
-//func main() {
+//func test() {
 //	var options []interface{}
-//	options = append(options, helper.WithRegexOption("^MDM.*"))
-//	tool := tools.RedisBigKeys{RegexExpr: "^MDM.*"}
+//	//options = append(options, helper.WithRegexOption(".*"))
+//	tool := tools.RedisBigKeys{
+//		NumOfResult: 100,
+//		RdbFile:     "/Users/ethnchao/dump.rdb",
+//		WorkDir:     "/tmp",
+//	}
 //	tool.Run(options...)
 //}
 
-func main() {
-	Test_hexToUint64()
-}
+//func main() {
+//	Test_hexToUint64()
+//}

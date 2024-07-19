@@ -26,19 +26,21 @@ import (
 )
 
 type RedisBigKeys struct {
-	Ctx       context.Context
-	HostPort  string
-	Password  string
-	UseMaster bool
-	WorkDir   string
-	RdbFile   string
-	info      map[string]string
-	isCluster bool
-	masters   []string
-	slaves    []string
-	rdbs      []string
-	topList   *redisTreeSet
-	tmpDir    string
+	Ctx         context.Context
+	HostPort    string
+	Password    string
+	NumOfResult int
+	UseMaster   bool
+	WorkDir     string
+	RdbFile     string
+	NoDelete    bool
+	info        map[string]string
+	isCluster   bool
+	masters     []string
+	slaves      []string
+	rdbs        []string
+	topList     *redisTreeSet
+	tmpDir      string
 }
 
 type redisTreeSet struct {
@@ -257,6 +259,16 @@ func (this *RedisBigKeys) connect() error {
 	return nil
 }
 
+func (this *RedisBigKeys) mkTmpDir() error {
+	this.tmpDir = fmt.Sprintf("%s/redis-tools-%s", this.WorkDir, uuid.New())
+	fmt.Printf("「准备」- 创建工作目录：%s...\n", this.tmpDir)
+	err := os.Mkdir(this.tmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("「准备」- 创建临时目录失败：%s", err)
+	}
+	return nil
+}
+
 func (this *RedisBigKeys) dump() error {
 	if this.UseMaster && len(this.masters) == 0 {
 		return fmt.Errorf("「导出」- 用户选择使用Master节点进行分析，但没有可用的Master节点")
@@ -273,12 +285,6 @@ func (this *RedisBigKeys) dump() error {
 		fmt.Println("「导出」- 使用Slave节点进行分析...")
 		nodes = this.slaves
 	}
-	this.tmpDir = fmt.Sprintf("%s/redis-tools-%s", this.WorkDir, uuid.New())
-	fmt.Printf("「导出」- 创建工作目录：%s...\n", this.tmpDir)
-	err := os.Mkdir(this.tmpDir, 0755)
-	if err != nil {
-		return fmt.Errorf("「导出」- 创建临时目录失败：%s", err)
-	}
 	for i := range nodes {
 		node := nodes[i]
 		fmt.Printf("「导出」- 连接至：%s 以生成RDB文件...\n", node)
@@ -291,9 +297,13 @@ func (this *RedisBigKeys) dump() error {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			return fmt.Errorf("「导出」- 生成失败: %v", err)
+			fmt.Printf("「导出」- 生成失败: %v，跳过.\n", err)
+			continue
 		}
 		rdbs = append(rdbs, rdbPath)
+	}
+	if len(rdbs) == 0 {
+		return fmt.Errorf("「导出」- 没有获取到任何rdb文件")
 	}
 	this.rdbs = rdbs
 	return nil
@@ -326,7 +336,7 @@ func (this *RedisBigKeys) analyzeRDB(rdbPath string, options ...interface{}) err
 }
 
 func (this *RedisBigKeys) analyze(options ...interface{}) error {
-	this.topList = newRedisHeap(100)
+	this.topList = newRedisHeap(this.NumOfResult)
 	//this.rdbs = []string{"D:\\662485\\Downloads\\redis-dump-3d196c09-eaf9-4070-88bf-6241a483b342.rdb"}
 	for _, rdb := range this.rdbs {
 		err := this.analyzeRDB(rdb, options...)
@@ -355,6 +365,10 @@ func (this *RedisBigKeys) report() {
 }
 
 func (this *RedisBigKeys) clean() {
+	if this.NoDelete {
+		fmt.Println("「清理」- 用户要求保留临时目录.")
+		return
+	}
 	_, err := os.Stat(this.tmpDir)
 	if err != nil {
 		fmt.Printf("「清理」- 临时目录：%s 已不存在.\n", this.tmpDir)
@@ -368,25 +382,35 @@ func (this *RedisBigKeys) clean() {
 	}
 }
 
-func (this *RedisBigKeys) Run(options ...interface{}) {
+func (this *RedisBigKeys) connectToGetDump() {
 	var err error
-	if this.RdbFile != "" {
-		var rdbs []string
-		rdbs = append(rdbs, this.RdbFile)
-		this.rdbs = rdbs
-	}
 	err = this.connect()
 	if err != nil {
 		fmt.Printf("连接Redis失败：%s.\n", err)
 		return
 	}
 	err = this.dump()
-	defer func() {
-		this.clean()
-	}()
 	if err != nil {
 		fmt.Printf("生成RDB文件失败：%s.\n", err)
 		return
+	}
+}
+
+func (this *RedisBigKeys) Run(options ...interface{}) {
+	var err error
+	if this.RdbFile != "" {
+		var rdbs []string
+		rdbs = append(rdbs, this.RdbFile)
+		this.rdbs = rdbs
+	} else {
+		err := this.mkTmpDir()
+		if err != nil {
+			return
+		}
+		this.connectToGetDump()
+		defer func() {
+			this.clean()
+		}()
 	}
 	err = this.analyze(options...)
 	if err != nil {
