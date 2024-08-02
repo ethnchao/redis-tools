@@ -1,9 +1,10 @@
 BINARY_NAME=redis-tools
 
 build:
-	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin main.go
-	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux main.go
-	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows main.go
+	GOARCH=amd64 GOOS=darwin go build -o ${BINARY_NAME}-darwin ./
+	GOARCH=arm64 GOOS=darwin go build -o ${BINARY_NAME}-darwin-arm64 ./
+	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME}-linux ./
+	GOARCH=amd64 GOOS=windows go build -o ${BINARY_NAME}-windows ./
 
 run: build
 	./${BINARY_NAME}

@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const help = `
+const help2 = `
 Redis 分析工具
 Options:
   -m          Module, including: bigkey[default]
@@ -34,18 +34,18 @@ Parameters between '[' and ']' is optional
 	[-regex '^PREFIX\-.*'] [-no-expired] [-use-master] [-no-delete] [-work-dir /opt]
 `
 
-type separators []string
+type separators2 []string
 
-func (s *separators) String() string {
+func (s *separators2) String() string {
 	return strings.Join(*s, " ")
 }
 
-func (s *separators) Set(value string) error {
+func (s *separators2) Set(value string) error {
 	*s = append(*s, value)
 	return nil
 }
 
-func main() {
+func test2() {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var module string
 	var addr string
@@ -69,7 +69,7 @@ func main() {
 	flagSet.BoolVar(&noDelete, "no-delete", false, "Do not delete work directory")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 
-	if addr == "" {
+	if addr == "" && rdbFile == "" {
 		println(help)
 		return
 	}
@@ -129,16 +129,17 @@ func Test_hexToUint64() {
 	log.Println("count", binary.BigEndian.Uint32(count))
 }
 
-//func test() {
-//	var options []interface{}
-//	//options = append(options, helper.WithRegexOption(".*"))
-//	tool := tools.RedisBigKeys{
-//		NumOfResult: 100,
-//		RdbFile:     "/Users/ethnchao/dump.rdb",
-//		WorkDir:     "/tmp",
-//	}
-//	tool.Run(options...)
-//}
+func test() {
+	var options []interface{}
+	//options = append(options, helper.WithRegexOption("^backer:redpacket:.*"))
+	tool := tools.RedisBigKeys{
+		NumOfResult: 100,
+		RdbFile:     "/Users/ethnchao/dump.rdb",
+		//RdbFile: "/Users/ethnchao/hedan-redis-oms-promotion-02-6379-1-1-dump.rdb",
+		WorkDir: "/tmp",
+	}
+	tool.Run(options...)
+}
 
 //func main() {
 //	Test_hexToUint64()

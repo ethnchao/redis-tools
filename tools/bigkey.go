@@ -350,16 +350,22 @@ func (this *RedisBigKeys) analyze(options ...interface{}) error {
 func (this *RedisBigKeys) report() {
 	fmt.Printf("\n# 扫描结果\n")
 	t := termtables.CreateTable()
-	t.AddHeaders("Key名称", "类型", "大小", "大小(K/M/GB)", "元素个数", "数据库")
+	t.AddHeaders("Key名称", "类型", "大小", "大小(K/M/GB)", "元素个数", "数据库", "过期时间")
 	iter := this.topList.set.Iterator()
 	for iter.Next() {
 		object := iter.Value().(model.RedisObject)
+		expiration := ""
+		if object.GetExpiration() != nil {
+			expiration = object.GetExpiration().Format("2006-01-02 15:04:05")
+		}
 		t.AddRow(object.GetKey(),
 			strings.ToTitle(object.GetType()),
 			strconv.Itoa(object.GetSize()),
 			bytefmt.FormatSize(uint64(object.GetSize())),
 			strconv.Itoa(object.GetElemCount()),
-			strconv.Itoa(object.GetDBIndex()))
+			strconv.Itoa(object.GetDBIndex()),
+			expiration,
+		)
 	}
 	fmt.Println(t.Render())
 }
