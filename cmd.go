@@ -12,7 +12,7 @@ import (
 const help = `
 This is a tool to parse Redis' RDB files
 Options:
-  -c <command>     including: json/memory/aof/bigkey/prefix/flamegraph
+  -c <command>     including: json/memory/aof/bigkey/scan/prefix/flamegraph
   -o <path>        output file path
   -n <number>      number of result, using in command: bigkey/prefix
   -p <password>    redis password, using when src is start with: redis://
@@ -24,6 +24,7 @@ Options:
   -use-master      Use master node to make rdb dump, default false
   -work-dir        Work directory, default to /tmp
   -ind-output      Individual output result: dump1.rdb result will be dump1.rdb.[json|aof|csv]
+  -pattern         glob-style pattern, eg: user:*, user:*:list
 
 Examples:
 parameters between '[' and ']' is optional
@@ -70,6 +71,7 @@ func main() {
 	var useMaster bool
 	var workDir string
 	var indOutput bool
+	var pattern string
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&n, "n", 0, "")
@@ -82,6 +84,7 @@ func main() {
 	flagSet.BoolVar(&useMaster, "use-master", false, "use master nodes")
 	flagSet.StringVar(&workDir, "work-dir", "/tmp", "working directory")
 	flagSet.BoolVar(&indOutput, "ind-output", false, "Individual output file")
+	flagSet.StringVar(&pattern, "pattern", "*", "working directory")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -96,7 +99,7 @@ func main() {
 
 	var rdbFiles []string
 
-	if strings.HasPrefix(src, "redis://") {
+	if strings.HasPrefix(src, "redis://") && cmd != "scan" {
 		save := helper.BgSave{
 			RedisServer: src,
 			Password:    password,
@@ -129,8 +132,15 @@ func main() {
 	//	err = helper.ToAOF(src, output, options)
 	case "bigkey":
 		err = helper.FindBiggestKeys(rdbFiles, n, output, indOutput, options...)
-	//case "prefix":
-	//	err = helper.PrefixAnalyse(src, n, maxDepth, outputFile, options...)
+	case "scan":
+		scan := helper.Scan{
+			RedisServer: src,
+			Password:    password,
+			Pattern:     pattern,
+		}
+		scan.Run()
+	case "prefix":
+		err = helper.PrefixAnalyse(src, n, maxDepth, output, options...)
 	//case "flamegraph":
 	//	_, err = helper.FlameGraph(src, port, seps, options...)
 	//	if err != nil {

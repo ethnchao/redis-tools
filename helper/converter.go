@@ -11,25 +11,6 @@ import (
 
 var jsonEncoder = sonic.ConfigDefault
 
-func mkOutput(rdbFilename string, output string, indOutput bool, suffix string) (string, *os.File, error) {
-	// 如果没有配置输出，并且不是独立文件输出模式
-	if output == "" && !indOutput {
-		return "STDOUT", os.Stdout, nil
-	} else {
-		var outputPath string
-		if indOutput {
-			outputPath = rdbFilename + suffix
-		} else {
-			outputPath = output
-		}
-		outputFile, err := os.Create(outputPath)
-		if err != nil {
-			return "", nil, fmt.Errorf("open output %s faild: %v", outputPath, err)
-		}
-		return outputPath, outputFile, nil
-	}
-}
-
 func jsonIt(rdbFilename string, outputFile *os.File, closeOutput bool, options ...interface{}) (bool, error) {
 	if rdbFilename == "" {
 		return false, errors.New("src file path is required")
@@ -90,6 +71,8 @@ func ToJsons(rdbFiles []string, output string, indOutput bool, options ...interf
 		createFile = false
 		addSuffix = false
 		closeOutput = false
+		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".json")
+		fmt.Printf("「JSON数据」- RDB文件: %s -> JSON文件: %s\n", rdbFilename, outputPath)
 		if indOutput || len(rdbFiles) == 1 {
 			createFile = true
 			addSuffix = true
@@ -107,11 +90,10 @@ func ToJsons(rdbFiles []string, output string, indOutput bool, options ...interf
 			}
 		}
 		if createFile {
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".json")
+			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".json", false)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("「JSON数据」- RDB文件: %s -> JSON文件: %s\n", rdbFilename, outputPath)
 			_, err := outputFile.WriteString("[\n")
 			if err != nil {
 				return fmt.Errorf("write json failed, %v", err)

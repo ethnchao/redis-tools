@@ -9,7 +9,6 @@ import (
 	"github.com/scylladb/termtables"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 )
 
@@ -187,20 +186,8 @@ func (s *BgSave) Clean() {
 	}
 }
 
-func (s *BgSave) parseSrc() {
-	s.hostPort = strings.Split(s.RedisServer, "redis://")[1]
-	s.db = 0
-	if strings.Contains(s.hostPort, "/") {
-		db := strings.Split(s.hostPort, "/")[1]
-		if db != "" {
-			dbInt, _ := strconv.Atoi(db)
-			s.db = dbInt
-		}
-	}
-}
-
 func (s *BgSave) Run() {
-	s.parseSrc()
+	s.hostPort, s.db = parseSrc(s.RedisServer)
 	var err error
 	err = s.connect()
 	fmt.Println("「连接」- 已扫描到的节点如下：")

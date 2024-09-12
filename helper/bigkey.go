@@ -75,6 +75,8 @@ func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool,
 	for index, rdbFilename := range rdbFiles {
 		createFile = false
 		closeOutput = false
+		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".csv")
+		fmt.Printf("「大KEY分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
 		if indOutput || len(rdbFiles) == 1 {
 			createFile = true
 			closeOutput = true
@@ -90,11 +92,10 @@ func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool,
 		}
 		if createFile {
 			top = newToplist(topN)
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".csv")
+			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".csv", false)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("「大KEY分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
 			_, err = outputFile.WriteString("database,key,type,size,size_readable,element_count\n")
 			if err != nil {
 				return fmt.Errorf("write header failed: %v", err)

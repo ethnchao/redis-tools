@@ -15,10 +15,18 @@ import (
 
 // PrefixAnalyse read rdb file and find the largest N keys.
 // The invoker owns output, FindBiggestKeys won't close it
-func PrefixAnalyse(rdbFilename string, topN int, maxDepth int, output *os.File, options ...interface{}) error {
+func PrefixAnalyse(rdbFilename string, topN int, maxDepth int, output string, options ...interface{}) error {
 	if rdbFilename == "" {
 		return errors.New("src file path is required")
 	}
+	var outputPath string
+	var outputFile *os.File
+	var err error
+	outputPath, outputFile, err = mkOutput(rdbFilename, output, false, ".csv", false)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("「前缀分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
 	if topN < 0 {
 		return errors.New("n must greater than 0")
 	} else if topN == 0 {
@@ -69,11 +77,11 @@ func PrefixAnalyse(rdbFilename string, topN int, maxDepth int, output *os.File, 
 	})
 
 	// write into csv
-	_, err = output.WriteString("database,prefix,size,size_readable,key_count\n")
+	_, err = outputFile.WriteString("database,prefix,size,size_readable,key_count\n")
 	if err != nil {
 		return fmt.Errorf("write header failed: %v", err)
 	}
-	csvWriter := csv.NewWriter(output)
+	csvWriter := csv.NewWriter(outputFile)
 	defer csvWriter.Flush()
 	printNode := func(node *radixNode) error {
 		db, key := parseNodeKey(node.fullpath)
