@@ -23,6 +23,7 @@ func mkOutput(rdbFilename string, output string, indOutput bool, suffix string, 
 		} else {
 			outputPath = output
 		}
+		outputPath = strings.Replace(outputPath, ":", "-", -1)
 		if !dryRun {
 			outputFile, err := os.Create(outputPath)
 			if err != nil {
