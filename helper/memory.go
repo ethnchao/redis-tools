@@ -36,7 +36,7 @@ func profileIt(rdbFilename string, outputFile *os.File, csvWriter *csv.Writer, c
 	formatExpiration := func(o model.RedisObject) string {
 		expiration := o.GetExpiration()
 		if expiration == nil {
-			return ""
+			return "PERSISTENT"
 		}
 		return expiration.Format(time.RFC3339)
 	}
