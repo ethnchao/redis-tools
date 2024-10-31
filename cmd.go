@@ -12,7 +12,7 @@ import (
 const help = `
 This is a tool to parse Redis' RDB files
 Options:
-  -c <command>     including: json/memory/aof/bigkey/scan/prefix/flamegraph
+  -c <command>     including: json / memory / aof / bigkey / scan / prefix / flamegraph
   -o <path>        output file path
   -n <number>      number of result, using in command: bigkey/prefix
   -p <password>    redis password, using when src is start with: redis://
