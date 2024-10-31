@@ -22,6 +22,8 @@ Options:
   -regex <regex>   using regex expression filter keys
   -no-expired      filter expired keys
   -use-master      Use master node to make rdb dump, default false
+  -no-cluster      Don't use the cluster mode, just connect to user specified node
+  -dry-run         Dry run mode, default false
   -work-dir        Work directory, default to /tmp
   -ind-output      Individual output result: dump1.rdb result will be dump1.rdb.[json|aof|csv]
   -pattern         glob-style pattern, eg: user:*, user:*:list
@@ -72,6 +74,8 @@ func main() {
 	var workDir string
 	var indOutput bool
 	var pattern string
+	var noCluster bool
+	var dryRun bool
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&n, "n", 0, "")
@@ -85,6 +89,8 @@ func main() {
 	flagSet.StringVar(&workDir, "work-dir", "/tmp", "working directory")
 	flagSet.BoolVar(&indOutput, "ind-output", false, "Individual output file")
 	flagSet.StringVar(&pattern, "pattern", "*", "working directory")
+	flagSet.BoolVar(&noCluster, "no-cluster", false, "do not use cluster mode")
+	flagSet.BoolVar(&dryRun, "dry-run", false, "dry run mode")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -105,6 +111,8 @@ func main() {
 			Password:    password,
 			UseMaster:   useMaster,
 			WorkDir:     workDir,
+			NoCluster:   noCluster,
+			DryRun:      dryRun,
 		}
 		save.Run()
 		//defer func() {
@@ -121,6 +129,11 @@ func main() {
 	}
 	if noExpired {
 		options = append(options, helper.WithNoExpiredOption())
+	}
+
+	if dryRun {
+		fmt.Println("Dry-Run 模式，后续步骤跳过")
+		return
 	}
 
 	switch cmd {

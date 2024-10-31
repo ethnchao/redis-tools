@@ -18,6 +18,8 @@ type BgSave struct {
 	UseMaster   bool
 	WorkDir     string
 	NoDelete    bool
+	NoCluster   bool
+	DryRun      bool
 	hostPort    string
 	info        map[string]string
 	isCluster   bool
@@ -93,25 +95,47 @@ func (s *BgSave) connect() error {
 		}
 	} else if info["redis_mode"] == "cluster" {
 		fmt.Println("「连接」- 检测到集群为 集群模式...")
-		fmt.Println("「连接」- 以集群模式重连Redis...")
-		redisClient2 := redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:    []string{s.hostPort},
-			Password: s.Password, // 没有密码，默认值
-		})
-		defer func(redisClient *redis.ClusterClient) {
-			err := redisClient.Close()
-			if err != nil {
-				fmt.Printf("「连接」- 关闭连接异常，忽略: %v\n", err)
+		if s.NoCluster {
+			fmt.Println("「连接」- 用户指定不使用集群模式...")
+			if info["role"] == "master" {
+				masters = append(masters, s.hostPort)
+			} else {
+				slaves = append(slaves, s.hostPort)
 			}
-		}(redisClient2)
-		_ = redisClient2.ForEachMaster(ctx, func(ctx context.Context, shard *redis.Client) error {
-			masters = append(masters, shard.Options().Addr)
-			return shard.Ping(ctx).Err()
-		})
-		_ = redisClient2.ForEachSlave(ctx, func(ctx context.Context, shard *redis.Client) error {
-			slaves = append(slaves, shard.Options().Addr)
-			return shard.Ping(ctx).Err()
-		})
+		} else {
+			fmt.Println("「连接」- 以集群模式重连Redis...")
+			redisClient2 := redis.NewClusterClient(&redis.ClusterOptions{
+				Addrs:    []string{s.hostPort},
+				Password: s.Password, // 没有密码，默认值
+			})
+			defer func(redisClient *redis.ClusterClient) {
+				err := redisClient.Close()
+				if err != nil {
+					fmt.Printf("「连接」- 关闭连接异常，忽略: %v\n", err)
+				}
+			}(redisClient2)
+			clusterNodesStr, err := redisClient2.ClusterNodes(ctx).Result()
+			if err != nil {
+				fmt.Printf("「连接」- 获取集群节点异常: %v\n", err)
+				return err
+			}
+			scanner := bufio.NewScanner(strings.NewReader(clusterNodesStr))
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.Contains(line, "@") {
+					lineArr := strings.Split(line, " ")
+					addrStr := lineArr[1]
+					roleStr := lineArr[2]
+					addrArr := strings.Split(addrStr, "@")
+					addr := addrArr[0]
+					if strings.Contains(roleStr, "master") {
+						masters = append(masters, addr)
+					} else if strings.Contains(roleStr, "slave") {
+						slaves = append(slaves, addr)
+					}
+				}
+			}
+		}
 	}
 	s.masters = masters
 	s.slaves = slaves
@@ -198,6 +222,10 @@ func (s *BgSave) Run() {
 	}
 	err = s.mkTmpDir()
 	if err != nil {
+		return
+	}
+	if s.DryRun {
+		fmt.Println("Dry-Run模式，跳过导出RDB")
 		return
 	}
 	err = s.dump()
