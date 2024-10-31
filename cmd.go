@@ -20,7 +20,7 @@ Options:
   -sep <separator> for flamegraph, rdb will separate key by it, default value is ":". 
 		supporting multi separators: -sep sep1 -sep sep2 
   -regex <regex>   using regex expression filter keys
-  -no-expired      filter expired keys
+  -expire          persistent / volatile / not-expired / expired
   -use-master      Use master node to make rdb dump, default false
   -no-cluster      Don't use the cluster mode, just connect to user specified node
   -dry-run         Dry run mode, default false
@@ -66,7 +66,7 @@ func main() {
 	var port int
 	var seps separators
 	var regexExpr string
-	var noExpired bool
+	var expireOpt string
 	var maxDepth int
 	var err error
 	var password string
@@ -83,7 +83,7 @@ func main() {
 	flagSet.IntVar(&port, "port", 0, "listen port for web")
 	flagSet.Var(&seps, "sep", "separator for flame graph")
 	flagSet.StringVar(&regexExpr, "regex", "", "regex expression")
-	flagSet.BoolVar(&noExpired, "no-expired", false, "filter expired keys")
+	flagSet.StringVar(&expireOpt, "expire", "", "persistent/volatile/not-expired")
 	flagSet.StringVar(&password, "p", "", "redis password")
 	flagSet.BoolVar(&useMaster, "use-master", false, "use master nodes")
 	flagSet.StringVar(&workDir, "work-dir", "/tmp", "working directory")
@@ -127,8 +127,8 @@ func main() {
 	if regexExpr != "" {
 		options = append(options, helper.WithRegexOption(regexExpr))
 	}
-	if noExpired {
-		options = append(options, helper.WithNoExpiredOption())
+	if expireOpt != "" {
+		options = append(options, helper.WithExpireOption(expireOpt))
 	}
 
 	if dryRun {

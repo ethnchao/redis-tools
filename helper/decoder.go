@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hdt3213/rdb/model"
 	"regexp"
+	"slices"
 	"time"
 )
 
@@ -46,38 +47,57 @@ func WithRegexOption(expr string) RegexOption {
 }
 
 // noExpiredDecoder filter all expired keys
-type noExpiredDecoder struct {
+type expireDecoder struct {
+	exp string
 	dec decoder
 }
 
-func (d *noExpiredDecoder) Parse(cb func(object model.RedisObject) bool) error {
+func (d *expireDecoder) Parse(cb func(object model.RedisObject) bool) error {
 	now := time.Now()
 	return d.dec.Parse(func(object model.RedisObject) bool {
 		expiration := object.GetExpiration()
-		if expiration == nil || expiration.After(now) {
+		if d.exp == "persistent" && expiration == nil { // 永久性KEY
+			return cb(object)
+		} else if d.exp == "volatile" && expiration != nil { // 非永久性KEY，易失性
+			return cb(object)
+		} else if d.exp == "not-expired" && (expiration == nil || expiration.After(now)) { // 未过期的KEY
+			return cb(object)
+		} else if d.exp == "expired" && expiration.Before(now) { // 已过期的KEY
 			return cb(object)
 		}
 		return true
 	})
 }
 
-// NoExpiredOption tells decoder to filter all expired keys
-type NoExpiredOption bool
+// expireWrapper returns
+func expireWrapper(d decoder, expire string) (*expireDecoder, error) {
+	options := []string{"persistent", "volatile", "not-expired", "expired"}
+	if !slices.Contains(options, expire) {
+		return nil, fmt.Errorf("unsupported expire option: %s", expire)
+	}
+	return &expireDecoder{
+		dec: d,
+		exp: expire,
+	}, nil
+}
 
-// WithNoExpiredOption tells decoder to filter all expired keys
-func WithNoExpiredOption() NoExpiredOption {
-	return NoExpiredOption(true)
+// ExpireOption tells decoder to filter persistent/volatile/not-expired keys
+type ExpireOption *string
+
+// WithExpireOption tells decoder to filter persistent/volatile/not-expired keys
+func WithExpireOption(expire string) ExpireOption {
+	return &expire
 }
 
 func wrapDecoder(dec decoder, options ...interface{}) (decoder, error) {
 	var regexOpt RegexOption
-	var noExpiredOpt NoExpiredOption
+	var expireOpt ExpireOption
 	for _, opt := range options {
 		switch o := opt.(type) {
 		case RegexOption:
 			regexOpt = o
-		case NoExpiredOption:
-			noExpiredOpt = o
+		case ExpireOption:
+			expireOpt = o
 		}
 	}
 	if regexOpt != nil {
@@ -87,9 +107,11 @@ func wrapDecoder(dec decoder, options ...interface{}) (decoder, error) {
 			return nil, err
 		}
 	}
-	if noExpiredOpt {
-		dec = &noExpiredDecoder{
-			dec: dec,
+	if expireOpt != nil {
+		var err error
+		dec, err = expireWrapper(dec, *expireOpt)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return dec, nil
