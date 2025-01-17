@@ -14,8 +14,8 @@ This is a tool to parse Redis' RDB files
 Options:
   -c <command>     including: json / memory / aof / bigkey / scan / prefix / flamegraph
   -o <path>        output file path
-  -n <number>      number of result, using in command: bigkey/prefix
-  -p <password>    redis password, using when src is start with: redis://
+  -n <number>      number of result, using in command: bigkey(default: MaxInt) / prefix(default: 100)
+  -p <password>    redis password, using when src is redis address(eg: redis://127.0.0.1:6379)
   -port <number>   listen port for flame graph web service
   -sep <separator> for flamegraph, rdb will separate key by it, default value is ":". 
 		supporting multi separators: -sep sep1 -sep sep2 
@@ -26,7 +26,7 @@ Options:
   -dry-run         Dry run mode, default false
   -work-dir        Work directory, default to /tmp
   -ind-output      Individual output result: dump1.rdb result will be dump1.rdb.[json|aof|csv]
-  -pattern         glob-style pattern, eg: user:*, user:*:list
+  -pattern         glob-style pattern, eg: user:*, user:*:list, used for scan function
 
 Examples:
 parameters between '[' and ']' is optional
@@ -62,7 +62,7 @@ func main() {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var cmd string
 	var output string
-	var n int
+	var topN int
 	var port int
 	var seps separators
 	var regexExpr string
@@ -78,7 +78,7 @@ func main() {
 	var dryRun bool
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
-	flagSet.IntVar(&n, "n", 0, "")
+	flagSet.IntVar(&topN, "n", 0, "")
 	flagSet.IntVar(&maxDepth, "max-depth", 0, "max depth of prefix tree")
 	flagSet.IntVar(&port, "port", 0, "listen port for web")
 	flagSet.Var(&seps, "sep", "separator for flame graph")
@@ -144,7 +144,7 @@ func main() {
 	//case "aof":
 	//	err = helper.ToAOF(src, output, options)
 	case "bigkey":
-		err = helper.FindBiggestKeys(rdbFiles, n, output, indOutput, options...)
+		err = helper.FindBiggestKeys(rdbFiles, topN, output, indOutput, options...)
 	case "scan":
 		scan := helper.Scan{
 			RedisServer: src,
@@ -153,7 +153,7 @@ func main() {
 		}
 		scan.Run()
 	case "prefix":
-		err = helper.PrefixAnalyse(src, n, maxDepth, output, options...)
+		err = helper.PrefixAnalyse(rdbFiles, topN, maxDepth, output, indOutput, options...)
 	//case "flamegraph":
 	//	_, err = helper.FlameGraph(src, port, seps, options...)
 	//	if err != nil {

@@ -174,7 +174,7 @@ func (s *BgSave) dump() error {
 		nodeArr := strings.Split(node, ":")
 		host := nodeArr[0]
 		port := nodeArr[1]
-		rdbPath := fmt.Sprintf("%s/redis-dump-%s.rdb", s.tmpDir, node)
+		rdbPath := fmt.Sprintf("%s/redis-dump-%s.rdb", s.tmpDir, strings.ReplaceAll(node, ":", "-"))
 		cmd := exec.Command("redis-cli", "-h", host, "-p", port, "-a", s.Password, "--no-auth-warning", "--rdb", rdbPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

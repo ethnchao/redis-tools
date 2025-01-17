@@ -90,7 +90,7 @@ func MemoryProfile(rdbFiles []string, output string, indOutput bool, options ...
 			if err != nil {
 				return err
 			}
-			_, err = outputFile.WriteString("database,key,type,size,size_readable,element_count,encoding,expiration\n")
+			_, err = outputFile.WriteString("数据库,KEY名,KEY类型,KEY大小,KEY大小[K/M/G],元素个数,编码,过期时间/配置\n")
 			if err != nil {
 				return fmt.Errorf("write header failed: %v", err)
 			}

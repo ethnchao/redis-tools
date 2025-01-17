@@ -62,8 +62,10 @@ func findIt(rdbFilename string, top *topList, outputFile *os.File, csvWriter *cs
 // FindBiggestKeys read rdb file and find the largest N keys.
 // The invoker owns output, FindBiggestKeys won't close it
 func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool, options ...interface{}) error {
-	if topN <= 0 {
+	if topN < 0 {
 		return errors.New("n must greater than 0")
+	} else if topN == 0 {
+		topN = 100
 	}
 	var outputPath string
 	var outputFile *os.File
