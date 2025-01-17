@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/lithammer/shortuuid/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/scylladb/termtables"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type BgSave struct {
@@ -143,7 +143,9 @@ func (s *BgSave) connect() error {
 }
 
 func (s *BgSave) mkTmpDir() error {
-	s.tmpDir = fmt.Sprintf("%s/redis-tools-%s", s.WorkDir, shortuuid.New())
+	now := time.Now()
+	dateTimeStr := now.Format("0102-150405")
+	s.tmpDir = fmt.Sprintf("%s/redis-tools-%s", s.WorkDir, dateTimeStr)
 	fmt.Printf("「准备」- 创建工作目录：%s...\n", s.tmpDir)
 	err := os.Mkdir(s.tmpDir, 0755)
 	if err != nil {
