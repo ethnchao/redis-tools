@@ -3,10 +3,11 @@ package helper
 import (
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/bytedance/sonic"
 	"github.com/hdt3213/rdb/core"
 	"github.com/hdt3213/rdb/model"
-	"os"
 )
 
 var jsonEncoder = sonic.ConfigDefault
@@ -71,7 +72,7 @@ func ToJsons(rdbFiles []string, output string, indOutput bool, options ...interf
 		createFile = false
 		addSuffix = false
 		closeOutput = false
-		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".json")
+		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-json.json")
 		fmt.Printf("「JSON数据」- RDB文件: %s -> JSON文件: %s\n", rdbFilename, outputPath)
 		if indOutput || len(rdbFiles) == 1 {
 			createFile = true
@@ -90,7 +91,7 @@ func ToJsons(rdbFiles []string, output string, indOutput bool, options ...interf
 			}
 		}
 		if createFile {
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".json", false)
+			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-json.json", false)
 			if err != nil {
 				return err
 			}

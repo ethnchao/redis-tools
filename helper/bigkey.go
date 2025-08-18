@@ -4,11 +4,12 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/hdt3213/rdb/bytefmt"
 	"github.com/hdt3213/rdb/core"
 	"github.com/hdt3213/rdb/model"
-	"os"
-	"strconv"
 )
 
 func findIt(rdbFilename string, top *topList, outputFile *os.File, csvWriter *csv.Writer, closeOutput bool, options ...interface{}) error {
@@ -77,7 +78,7 @@ func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool,
 	for index, rdbFilename := range rdbFiles {
 		createFile = false
 		closeOutput = false
-		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".csv")
+		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-bigkey.csv")
 		fmt.Printf("「大KEY分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
 		if indOutput || len(rdbFiles) == 1 {
 			createFile = true
@@ -94,7 +95,7 @@ func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool,
 		}
 		if createFile {
 			top = newToplist(topN)
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".csv", false)
+			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-bigkey.csv", false)
 			if err != nil {
 				return err
 			}

@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-func ckOutput(rdbFilename string, output string, indOutput bool, suffix string) (string, error) {
-	outputPath, _, err := mkOutput(rdbFilename, output, indOutput, suffix, true)
+func getOutPath(rdbFilename string, output string, indOutput bool, suffix string) (string, error) {
+	outputPath, _, err := createOutPath(rdbFilename, output, indOutput, suffix, true)
 	return outputPath, err
 }
 
-func mkOutput(rdbFilename string, output string, indOutput bool, suffix string, dryRun bool) (string, *os.File, error) {
+func createOutPath(rdbFilename string, output string, indOutput bool, suffix string, dryRun bool) (string, *os.File, error) {
 	// 如果没有配置输出，并且不是独立文件输出模式
 	if output == "" && !indOutput {
 		return "STDOUT", os.Stdout, nil

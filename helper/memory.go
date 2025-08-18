@@ -4,12 +4,13 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/hdt3213/rdb/bytefmt"
-	"github.com/hdt3213/rdb/core"
-	"github.com/hdt3213/rdb/model"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/hdt3213/rdb/bytefmt"
+	"github.com/hdt3213/rdb/core"
+	"github.com/hdt3213/rdb/model"
 )
 
 func profileIt(rdbFilename string, outputFile *os.File, csvWriter *csv.Writer, closeOutput bool, options ...interface{}) error {
@@ -70,7 +71,7 @@ func MemoryProfile(rdbFiles []string, output string, indOutput bool, options ...
 	for index, rdbFilename := range rdbFiles {
 		createFile = false
 		closeOutput = false
-		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".csv")
+		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-memory.csv")
 		fmt.Printf("「内存报告」- RDB文件: %s -> 报告文件: %s\n", rdbFilename, outputPath)
 		if indOutput || len(rdbFiles) == 1 {
 			createFile = true
@@ -86,7 +87,7 @@ func MemoryProfile(rdbFiles []string, output string, indOutput bool, options ...
 			}
 		}
 		if createFile {
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".csv", false)
+			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-memory.csv", false)
 			if err != nil {
 				return err
 			}

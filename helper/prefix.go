@@ -100,7 +100,7 @@ func PrefixAnalyse(rdbFiles []string, topN int, maxDepth int, output string, ind
 	for index, rdbFilename := range rdbFiles {
 		createFile = false
 		closeOutput = false
-		outputPath, err = ckOutput(rdbFilename, output, indOutput, ".csv")
+		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-prefix.csv")
 		fmt.Printf("「前缀分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
 		// 如果拆分输出报告，或者只有一个文件需要分析，则需要创建新的CSV文件，并且要关闭文件流
 		if indOutput || len(rdbFiles) == 1 {
@@ -119,7 +119,7 @@ func PrefixAnalyse(rdbFiles []string, topN int, maxDepth int, output string, ind
 			}
 		}
 		if createFile {
-			outputPath, outputFile, err = mkOutput(rdbFilename, output, indOutput, ".csv", false)
+			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-prefix.csv", false)
 			if err != nil {
 				return err
 			}
