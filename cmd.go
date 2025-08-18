@@ -5,52 +5,108 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"redis-tools/helper"
 )
 
 const help = `
-This is a tool to parse Redis' RDB files
-Options:
-  -c <command>     including: json / memory / aof / bigkey / scan / prefix / flamegraph / delete
-  -o <path>        output file path
-  -n <number>      number of result, using in command: bigkey(default: MaxInt) / prefix(default: 100)
-  -p <password>    redis password, using when src is redis address(eg: redis://127.0.0.1:6379)
-  -port <number>   listen port for flame graph web service
-  -sep <separator> for flamegraph, rdb will separate key by it, default value is ":". 
-		supporting multi separators: -sep sep1 -sep sep2 
-  -regex <regex>   using regex expression filter keys
-  -expire          persistent / volatile / not-expired / expired
-  -use-master      Use master node to make rdb dump, default false
-  -no-cluster      Don't use the cluster mode, just connect to user specified node
-  -dry-run         Dry run mode, default false
-  -work-dir        Work directory, default to /tmp
-  -ind-output      Individual output result: dump1.rdb result will be dump1.rdb.[json|aof|csv]
-  -pattern         glob-style pattern, eg: user:*, user:*:list, used for scan/delete operation
-  -max-depth       Max depth of prefix, eg: 5
-  -batch-size      Batch size for delete operation, default: 1000
+Redis工具集 - 用于解析RDB文件和操作Redis数据库
 
-Examples:
-parameters between '[' and ']' is optional
-1. convert rdb to json
-  redis-tools -c json -o dump.json dump.rdb
-  redis-tools -c json -o dump.json dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, output result to dump.json
-  redis-tools -c json -ind-output dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, individually output to dump1.rdb.json, dump2.rdb.json, dump3.rdb.json
-  redis-tools -c json -o dump.json redis://127.0.0.1:6379/1 // Connect to redis server(support standalone, cluster) fetch rdb dump, then convert rdb to json
-2. generate memory report(also support multiple rdb, individual output, connect to redis server fetch rdb)
-  redis-tools -c memory -o memory.csv dump.rdb
-3. convert to aof file
-  redis-tools -c aof -o dump.aof dump.rdb
-4. get largest keys(also support multiple rdb, individual output, connect to redis server fetch rdb)
-  redis-tools -c bigkey [-o dump.aof] [-n 10] dump.rdb
-5. get number and memory size by prefix
-  redis-tools -c prefix [-n 10] [-max-depth 3] [-o prefix-report.csv] dump.rdb
-6. draw flamegraph
-  redis-tools -c flamegraph [-port 16379] [-sep :] dump.rdb
-7. use regex
-  redis-tools -c memory -regex '^user:key:.*$' dump.rdb
-8. batch delete keys by pattern
-  redis-tools -c delete -pattern "temp:*" [-batch-size 1000] redis://127.0.0.1:6379
+用法: redis-tools [选项] <数据源>
+
+数据源:
+  本地RDB文件      如: dump.rdb 或 dump1.rdb,dump2.rdb,dump3.rdb
+  Redis连接地址    如: redis://127.0.0.1:6379 或 redis://127.0.0.1:6379/1
+
+基础选项:
+  -c <命令>        [必需] 指定执行的命令
+                   可选值: json, memory, bigkey, prefix, flamegraph, scan, delete
+  -data-dir <目录> 数据目录，用于存储RDB文件和报告 (默认: /tmp)
+  -p <密码>        Redis密码，连接Redis服务器时使用
+  -dry-run         试运行模式，不执行实际操作 (默认: false)
+
+命令相关选项:
+  -n <数量>        返回结果数量限制
+                   · bigkey: 显示最大KEY的数量 (默认: 无限制)
+                   · prefix: 显示前缀分析结果数量 (默认: 100)
+                   · scan:   最多展示的KEY数量 (默认: 无限制)
+  
+  -pattern <模式>  glob风格的匹配模式，支持通配符
+                   · scan: 扫描匹配的KEY (默认: *)
+                   · delete: 删除匹配的KEY (必需，不可为*)
+                   例如: user:*, cache:*:session, temp_*
+  
+  -batch-size <数量> 批量操作的大小
+                   · delete: 每批删除的KEY数量 (默认: 1000)
+  
+  -max-depth <深度> 前缀分析的最大深度
+                   · prefix: 分析层级深度 (默认: 无限制)
+  
+  -port <端口>     Web服务监听端口
+                   · flamegraph: 火焰图Web服务端口 (默认: 16379)
+  
+  -sep <分隔符>    KEY分隔符，可多次指定
+                   · flamegraph: 火焰图KEY分割符 (默认: ":")
+                   例如: -sep : -sep _
+
+过滤选项:
+  -regex <正则>    正则表达式过滤器，过滤KEY名称
+                   适用命令: json, memory, bigkey, prefix
+                   例如: '^user:.*$', '.*session.*'
+  
+  -expire <类型>   按过期类型过滤KEY
+                   可选值: persistent(持久), volatile(易失), not-expired(未过期), expired(已过期)
+                   适用命令: json, memory, bigkey, prefix
+
+连接选项:
+  -use-master      使用Master节点生成RDB (默认: 使用Slave节点)
+                   适用命令: 所有RDB文件分析命令
+  
+  -no-cluster      强制使用单机模式，不使用集群模式
+                   适用命令: scan, delete 及所有Redis连接操作
+
+使用示例:
+
+1. RDB文件转JSON
+   redis-tools -c json dump.rdb
+   redis-tools -c json dump1.rdb,dump2.rdb    # 多文件处理
+   redis-tools -c json redis://127.0.0.1:6379 # 连接Redis服务器
+
+2. 内存分析报告
+   redis-tools -c memory dump.rdb
+   redis-tools -c memory -regex '^user:.*' dump.rdb  # 只分析user:开头的KEY
+
+3. 大KEY分析
+   redis-tools -c bigkey -n 20 dump.rdb       # 显示最大的20个KEY
+   redis-tools -c bigkey redis://127.0.0.1:6379
+
+4. 前缀分析
+   redis-tools -c prefix -n 50 -max-depth 3 dump.rdb
+   redis-tools -c prefix -data-dir /data redis://127.0.0.1:6379
+
+5. KEY扫描
+   redis-tools -c scan -pattern "user:*" -n 500 redis://127.0.0.1:6379
+   redis-tools -c scan -pattern "session:*" -no-cluster -n 100 redis://127.0.0.1:6379
+
+6. 批量删除KEY
+   redis-tools -c delete -pattern "temp:*" redis://127.0.0.1:6379
+   redis-tools -c delete -pattern "cache:expired:*" -batch-size 500 redis://127.0.0.1:6379
+   redis-tools -c delete -pattern "session:*" -p mypassword redis://127.0.0.1:6379
+
+7. 火焰图分析
+   redis-tools -c flamegraph -port 8080 -sep : dump.rdb
+   redis-tools -c flamegraph -sep : -sep _ dump.rdb
+
+8. 高级过滤示例
+   redis-tools -c memory -regex '^(user|order):.*' -expire persistent dump.rdb
+   redis-tools -c bigkey -expire not-expired -n 10 redis://127.0.0.1:6379
+
+注意事项:
+- 删除操作必须指定-pattern参数，且不能为'*'以防误删
+- 所有生成的报告文件会自动打包为ZIP格式
+- 使用Redis连接时，工具会自动检测单机/集群模式
+- 方括号[]内的参数为可选参数
 `
 
 type separators []string
@@ -66,8 +122,11 @@ func (s *separators) Set(value string) error {
 
 func main() {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	fmt.Println("==========================================")
+	fmt.Println("🚀 Redis工具集 启动")
+	fmt.Printf("🕒 %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Println("==========================================")
 	var cmd string
-	var output string
 	var topN int
 	var port int
 	var seps separators
@@ -77,14 +136,12 @@ func main() {
 	var err error
 	var password string
 	var useMaster bool
-	var workDir string
-	var indOutput bool
+	var dataDir string
 	var pattern string
 	var noCluster bool
 	var dryRun bool
 	var batchSize int
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
-	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&topN, "n", 0, "")
 	flagSet.IntVar(&maxDepth, "max-depth", 0, "max depth of prefix tree")
 	flagSet.IntVar(&port, "port", 0, "listen port for web")
@@ -93,9 +150,8 @@ func main() {
 	flagSet.StringVar(&expireOpt, "expire", "", "persistent/volatile/not-expired")
 	flagSet.StringVar(&password, "p", "", "redis password")
 	flagSet.BoolVar(&useMaster, "use-master", false, "use master nodes")
-	flagSet.StringVar(&workDir, "work-dir", "/tmp", "working directory")
-	flagSet.BoolVar(&indOutput, "ind-output", false, "Individual output file")
-	flagSet.StringVar(&pattern, "pattern", "*", "working directory")
+	flagSet.StringVar(&dataDir, "data-dir", "/tmp", "data directory for storing rdb files and reports")
+	flagSet.StringVar(&pattern, "pattern", "*", "glob-style pattern")
 	flagSet.BoolVar(&noCluster, "no-cluster", false, "do not use cluster mode")
 	flagSet.BoolVar(&dryRun, "dry-run", false, "dry run mode")
 	flagSet.IntVar(&batchSize, "batch-size", 1000, "batch size for delete operation")
@@ -107,11 +163,25 @@ func main() {
 		return
 	}
 	if src == "" {
-		println("src file or redis server address is required")
+		fmt.Println("❌ 错误: 必须指定数据源 (RDB文件路径或Redis连接地址)")
+		fmt.Println("   示例: redis-tools -c memory dump.rdb")
+		fmt.Println("   示例: redis-tools -c scan redis://127.0.0.1:6379")
 		return
 	}
 
 	var rdbFiles []string
+
+	// 生成唯一工作目录
+	now := time.Now()
+	workDirName := fmt.Sprintf("redis-tools-%s", now.Format("20060102-150405"))
+	workDir := fmt.Sprintf("%s/%s", dataDir, workDirName)
+
+	// 创建工作目录
+	err = os.MkdirAll(workDir, 0755)
+	if err != nil {
+		fmt.Printf("❌ 创建工作目录失败: %v\n", err)
+		return
+	}
 
 	// 需要生成RDB文件的命令
 	needsRdbFile := func(command string) bool {
@@ -151,49 +221,50 @@ func main() {
 	}
 
 	if dryRun {
-		fmt.Println("Dry-Run 模式，后续步骤跳过")
+		fmt.Println("🧪 试运行模式，跳过实际执行步骤")
+		fmt.Println("==========================================")
 		return
 	}
 
 	switch cmd {
 	case "json":
-		err = helper.ToJsons(rdbFiles, output, indOutput, options...)
+		err = helper.ToJsons(rdbFiles, workDir, workDirName, options...)
 	case "memory":
-		err = helper.MemoryProfile(rdbFiles, output, indOutput, options...)
+		err = helper.MemoryProfile(rdbFiles, workDir, workDirName, options...)
 	//case "aof":
 	//	err = helper.ToAOF(src, output, options)
 	case "bigkey":
-		err = helper.FindBiggestKeys(rdbFiles, topN, output, indOutput, options...)
+		err = helper.FindBiggestKeys(rdbFiles, topN, workDir, workDirName, options...)
 	case "scan":
-		scan := helper.Scan{
+		scanTask := helper.ScanTask{
 			RedisServer: src,
 			Password:    password,
 			Pattern:     pattern,
+			NoCluster:   noCluster,
+			Limit:       topN,
 		}
-		scan.Run()
+		scanTask.Run()
 	case "delete":
-		deleter := helper.DeleteTask{
+		deleteTask := helper.DeleteTask{
 			RedisServer: src,
 			Password:    password,
 			Pattern:     pattern,
 			BatchSize:   batchSize,
+			NoCluster:   noCluster,
 		}
-		deleter.Run()
+		deleteTask.Run()
 	case "prefix":
-		err = helper.PrefixAnalyse(rdbFiles, topN, maxDepth, output, indOutput, options...)
-	//case "flamegraph":
-	//	_, err = helper.FlameGraph(src, port, seps, options...)
-	//	if err != nil {
-	//		fmt.Printf("error: %v\n", err)
-	//		return
-	//	}
-	//	<-make(chan struct{})
+		err = helper.PrefixAnalyse(rdbFiles, topN, maxDepth, workDir, workDirName, options...)
+	case "flamegraph":
+		err = helper.FlameGraph(rdbFiles, port, seps, workDir, workDirName, options...)
 	default:
-		println("unknown command")
+		fmt.Printf("❌ 错误: 未知命令 '%s'\n", cmd)
+		fmt.Println("   支持的命令: json, memory, bigkey, prefix, flamegraph, scan, delete")
+		fmt.Println("   使用 'redis-tools' 查看完整帮助信息")
 		return
 	}
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		fmt.Printf("❌ 执行失败: %v\n", err)
 		return
 	}
 }

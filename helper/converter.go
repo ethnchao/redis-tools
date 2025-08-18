@@ -61,66 +61,68 @@ func jsonIt(rdbFilename string, outputFile *os.File, closeOutput bool, options .
 // 让for循环控制信号的给出、创建文件（因为文件可能要复用），剩余步骤由子方法负责实现
 
 // ToJsons read rdb file and convert to json file
-func ToJsons(rdbFiles []string, output string, indOutput bool, options ...interface{}) error {
-	var outputFile *os.File
-	var outputPath string
-	var createFile bool
-	var addSuffix bool
-	var closeOutput bool
-	var err error
-	for index, rdbFilename := range rdbFiles {
-		createFile = false
-		addSuffix = false
-		closeOutput = false
-		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-json.json")
-		fmt.Printf("「JSON数据」- RDB文件: %s -> JSON文件: %s\n", rdbFilename, outputPath)
-		if indOutput || len(rdbFiles) == 1 {
-			createFile = true
-			addSuffix = true
-			closeOutput = true
-		} else {
-			if index == 0 {
-				createFile = true
-				addSuffix = false
-				closeOutput = false
-			}
-			if index == len(rdbFiles)-1 {
-				createFile = false
-				addSuffix = true
-				closeOutput = true
-			}
-		}
-		if createFile {
-			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-json.json", false)
-			if err != nil {
-				return err
-			}
-			_, err := outputFile.WriteString("[\n")
-			if err != nil {
-				return fmt.Errorf("write json failed, %v", err)
-			}
-		}
-		if outputFile == nil {
-			return fmt.Errorf("outputFile not createed: %v", err)
-		}
-		altered, err := jsonIt(rdbFilename, outputFile, closeOutput, options...)
+func ToJsons(rdbFiles []string, workDir string, workDirName string, options ...interface{}) error {
+	fmt.Println("🔄 启动JSON转换任务")
+	fmt.Println("==========================================")
+
+	var outputFiles []string // 用于收集生成的文件路径，后续压缩
+
+	fmt.Printf("📁 工作目录: %s\n", workDir)
+	fmt.Printf("📊 转换文件数量: %d\n\n", len(rdbFiles))
+
+	for i, rdbFilename := range rdbFiles {
+		fmt.Printf("[%d/%d] 正在转换: %s\n", i+1, len(rdbFiles), rdbFilename)
+
+		outputPath, outputFile, err := createOutPath(rdbFilename, workDir, "-json.json", false)
 		if err != nil {
-			return err
+			return fmt.Errorf("❌ 创建输出文件失败: %v", err)
 		}
-		if addSuffix {
-			if altered {
-				_, err = outputFile.Seek(-2, 2)
-				if err != nil {
-					return fmt.Errorf("error during seek in file: %v", err)
-				}
-			}
-			_, err := outputFile.WriteString("\n]")
+
+		// 收集输出文件路径
+		outputFiles = append(outputFiles, outputPath)
+
+		// 写入JSON开始标记
+		_, err = outputFile.WriteString("[\n")
+		if err != nil {
+			return fmt.Errorf("❌ 写入JSON开始标记失败: %v", err)
+		}
+
+		altered, err := jsonIt(rdbFilename, outputFile, true, options...)
+		if err != nil {
+			return fmt.Errorf("❌ JSON转换失败: %v", err)
+		}
+
+		// 写入JSON结束标记
+		if altered {
+			_, err = outputFile.Seek(-2, 2)
 			if err != nil {
-				return fmt.Errorf("error during write in file: %v", err)
+				return fmt.Errorf("❌ 文件定位失败: %v", err)
 			}
+		}
+		_, err = outputFile.WriteString("\n]")
+		if err != nil {
+			return fmt.Errorf("❌ 写入JSON结束标记失败: %v", err)
+		}
+
+		fmt.Printf("  ✅ 完成 -> %s\n", outputPath)
+	}
+
+	fmt.Println("\n📦 正在打包JSON文件...")
+	// 压缩输出文件
+	if len(outputFiles) > 0 {
+		zipPath := generateZipName(workDir, workDirName)
+		err := compressFiles(outputFiles, zipPath)
+		if err != nil {
+			fmt.Printf("❌ 压缩失败: %v\n", err)
+		} else {
+			fmt.Printf("✅ 压缩完成: %s\n", zipPath)
+			// 清理原始文件
+			cleanupFiles(outputFiles)
 		}
 	}
-	fmt.Printf("「JSON数据」- 生成完成\n")
+
+	fmt.Println("==========================================")
+	fmt.Printf("🎉 JSON转换任务完成，共转换 %d 个RDB文件\n", len(rdbFiles))
 	return nil
 }
 

@@ -62,60 +62,64 @@ func findIt(rdbFilename string, top *topList, outputFile *os.File, csvWriter *cs
 
 // FindBiggestKeys read rdb file and find the largest N keys.
 // The invoker owns output, FindBiggestKeys won't close it
-func FindBiggestKeys(rdbFiles []string, topN int, output string, indOutput bool, options ...interface{}) error {
+func FindBiggestKeys(rdbFiles []string, topN int, workDir string, workDirName string, options ...interface{}) error {
+	fmt.Println("🔍 启动大KEY分析任务")
+	fmt.Println("==========================================")
+
 	if topN < 0 {
-		return errors.New("n must greater than 0")
+		return errors.New("❌ 错误: 结果数量必须大于0")
 	} else if topN == 0 {
 		topN = 100
 	}
-	var outputPath string
-	var outputFile *os.File
-	var createFile bool
-	var closeOutput bool
-	var err error
-	var top *topList
-	var csvWriter *csv.Writer
-	for index, rdbFilename := range rdbFiles {
-		createFile = false
-		closeOutput = false
-		outputPath, err = getOutPath(rdbFilename, output, indOutput, "-bigkey.csv")
-		fmt.Printf("「大KEY分析」- RDB文件: %s -> 分析报告: %s\n", rdbFilename, outputPath)
-		if indOutput || len(rdbFiles) == 1 {
-			createFile = true
-			closeOutput = true
-		} else {
-			if index == 0 {
-				createFile = true
-				closeOutput = false
-			}
-			if index == len(rdbFiles)-1 {
-				createFile = false
-				closeOutput = true
-			}
-		}
-		if createFile {
-			top = newToplist(topN)
-			_, outputFile, err = createOutPath(rdbFilename, output, indOutput, "-bigkey.csv", false)
-			if err != nil {
-				return err
-			}
-			_, err = outputFile.WriteString("database,key,type,size,size_readable,element_count\n")
-			if err != nil {
-				return fmt.Errorf("write header failed: %v", err)
-			}
-			csvWriter = csv.NewWriter(outputFile)
-		}
-		if outputFile == nil {
-			return fmt.Errorf("outputFile not created: %v", err)
-		}
-		if csvWriter == nil {
-			return fmt.Errorf("csvWriter not created: %v", err)
-		}
-		err := findIt(rdbFilename, top, outputFile, csvWriter, closeOutput, options...)
+
+	fmt.Printf("📁 工作目录: %s\n", workDir)
+	fmt.Printf("📊 分析文件数量: %d\n", len(rdbFiles))
+	fmt.Printf("🎯 显示TOP %d 大KEY\n\n", topN)
+
+	var outputFiles []string // 用于收集生成的文件路径，后续压缩
+
+	for i, rdbFilename := range rdbFiles {
+		fmt.Printf("[%d/%d] 正在分析: %s\n", i+1, len(rdbFiles), rdbFilename)
+
+		outputPath, outputFile, err := createOutPath(rdbFilename, workDir, "-bigkey.csv", false)
 		if err != nil {
-			return err
+			return fmt.Errorf("❌ 创建输出文件失败: %v", err)
+		}
+
+		// 收集输出文件路径
+		outputFiles = append(outputFiles, outputPath)
+
+		// 写入CSV头部
+		_, err = outputFile.WriteString("database,key,type,size,size_readable,element_count\n")
+		if err != nil {
+			return fmt.Errorf("❌ 写入CSV头部失败: %v", err)
+		}
+
+		csvWriter := csv.NewWriter(outputFile)
+		top := newToplist(topN)
+		err = findIt(rdbFilename, top, outputFile, csvWriter, true, options...)
+		if err != nil {
+			return fmt.Errorf("❌ 分析RDB文件失败: %v", err)
+		}
+
+		fmt.Printf("  ✅ 完成 -> %s\n", outputPath)
+	}
+
+	fmt.Println("\n📦 正在打包报告文件...")
+	// 压缩输出文件
+	if len(outputFiles) > 0 {
+		zipPath := generateZipName(workDir, workDirName)
+		err := compressFiles(outputFiles, zipPath)
+		if err != nil {
+			fmt.Printf("❌ 压缩失败: %v\n", err)
+		} else {
+			fmt.Printf("✅ 压缩完成: %s\n", zipPath)
+			// 清理原始文件
+			cleanupFiles(outputFiles)
 		}
 	}
-	fmt.Printf("「大KEY分析」- 分析完成\n")
+
+	fmt.Println("==========================================")
+	fmt.Printf("🎉 大KEY分析任务完成，共分析 %d 个RDB文件\n", len(rdbFiles))
 	return nil
 }
