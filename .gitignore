@@ -1,3 +1,4 @@
 redis-tools-*
 .idea
 *.rdb
+cmd_test.go

@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"strings"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Scan struct {
@@ -34,9 +35,11 @@ func (s *Scan) scan() error {
 	}(redisClient)
 	infoStr := redisClient.Info(ctx).String()
 	if strings.Contains(infoStr, "ERR invalid password") {
-		return fmt.Errorf("「连接」- Redis登录失败：密码错误 ")
+		return fmt.Errorf("「连接」- Redis登录失败：密码错误")
+	} else if strings.Contains(infoStr, "NOAUTH Authentication required") {
+		return fmt.Errorf("「连接」- Redis登录失败：需要密码但未提供，请使用 -p 参数指定密码")
 	} else {
-		fmt.Println("「连接」- Redis登录成功.")
+		fmt.Println("「连接」- Redis登录成功: %s", infoStr)
 	}
 	scanner := bufio.NewScanner(strings.NewReader(infoStr))
 	info := make(map[string]string)

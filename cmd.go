@@ -12,7 +12,7 @@ import (
 const help = `
 This is a tool to parse Redis' RDB files
 Options:
-  -c <command>     including: json / memory / aof / bigkey / scan / prefix / flamegraph
+  -c <command>     including: json / memory / aof / bigkey / scan / prefix / flamegraph / delete
   -o <path>        output file path
   -n <number>      number of result, using in command: bigkey(default: MaxInt) / prefix(default: 100)
   -p <password>    redis password, using when src is redis address(eg: redis://127.0.0.1:6379)
@@ -26,25 +26,31 @@ Options:
   -dry-run         Dry run mode, default false
   -work-dir        Work directory, default to /tmp
   -ind-output      Individual output result: dump1.rdb result will be dump1.rdb.[json|aof|csv]
-  -pattern         glob-style pattern, eg: user:*, user:*:list, used for scan function
+  -pattern         glob-style pattern, eg: user:*, user:*:list, used for scan/delete operation
+  -max-depth       Max depth of prefix, eg: 5
+  -batch-size      Batch size for delete operation, default: 1000
 
 Examples:
 parameters between '[' and ']' is optional
 1. convert rdb to json
-  rdb -c json -o dump.json dump.rdb
-  rdb -c json -o dump.json dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, output result to dump.json
-  rdb -c json -ind-output dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, individually output to dump1.rdb.json, dump2.rdb.json, dump3.rdb.json
-  rdb -c json -o dump.json redis://127.0.0.1:6379/1 // Connect to redis server(support standalone, cluster) fetch rdb dump, then convert rdb to json
+  redis-tools -c json -o dump.json dump.rdb
+  redis-tools -c json -o dump.json dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, output result to dump.json
+  redis-tools -c json -ind-output dump1.rdb,dump2.rdb,dump3.rdb // This will parse multiple rdb, individually output to dump1.rdb.json, dump2.rdb.json, dump3.rdb.json
+  redis-tools -c json -o dump.json redis://127.0.0.1:6379/1 // Connect to redis server(support standalone, cluster) fetch rdb dump, then convert rdb to json
 2. generate memory report(also support multiple rdb, individual output, connect to redis server fetch rdb)
-  rdb -c memory -o memory.csv dump.rdb
+  redis-tools -c memory -o memory.csv dump.rdb
 3. convert to aof file
-  rdb -c aof -o dump.aof dump.rdb
+  redis-tools -c aof -o dump.aof dump.rdb
 4. get largest keys(also support multiple rdb, individual output, connect to redis server fetch rdb)
-  rdb -c bigkey [-o dump.aof] [-n 10] dump.rdb
+  redis-tools -c bigkey [-o dump.aof] [-n 10] dump.rdb
 5. get number and memory size by prefix
-  rdb -c prefix [-n 10] [-max-depth 3] [-o prefix-report.csv] dump.rdb
+  redis-tools -c prefix [-n 10] [-max-depth 3] [-o prefix-report.csv] dump.rdb
 6. draw flamegraph
-  rdb -c flamegraph [-port 16379] [-sep :] dump.rdb
+  redis-tools -c flamegraph [-port 16379] [-sep :] dump.rdb
+7. use regex
+  redis-tools -c memory -regex '^user:key:.*$' dump.rdb
+8. batch delete keys by pattern
+  redis-tools -c delete -pattern "temp:*" [-batch-size 1000] redis://127.0.0.1:6379
 `
 
 type separators []string
@@ -76,6 +82,7 @@ func main() {
 	var pattern string
 	var noCluster bool
 	var dryRun bool
+	var batchSize int
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
 	flagSet.IntVar(&topN, "n", 0, "")
@@ -91,6 +98,7 @@ func main() {
 	flagSet.StringVar(&pattern, "pattern", "*", "working directory")
 	flagSet.BoolVar(&noCluster, "no-cluster", false, "do not use cluster mode")
 	flagSet.BoolVar(&dryRun, "dry-run", false, "dry run mode")
+	flagSet.IntVar(&batchSize, "batch-size", 1000, "batch size for delete operation")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -105,7 +113,18 @@ func main() {
 
 	var rdbFiles []string
 
-	if strings.HasPrefix(src, "redis://") && cmd != "scan" {
+	// 需要生成RDB文件的命令
+	needsRdbFile := func(command string) bool {
+		rdbCommands := []string{"json", "memory", "bigkey", "prefix", "flamegraph"}
+		for _, c := range rdbCommands {
+			if c == command {
+				return true
+			}
+		}
+		return false
+	}
+
+	if strings.HasPrefix(src, "redis://") && needsRdbFile(cmd) {
 		save := helper.BgSave{
 			RedisServer: src,
 			Password:    password,
@@ -152,6 +171,14 @@ func main() {
 			Pattern:     pattern,
 		}
 		scan.Run()
+	case "delete":
+		deleter := helper.DeleteTask{
+			RedisServer: src,
+			Password:    password,
+			Pattern:     pattern,
+			BatchSize:   batchSize,
+		}
+		deleter.Run()
 	case "prefix":
 		err = helper.PrefixAnalyse(rdbFiles, topN, maxDepth, output, indOutput, options...)
 	//case "flamegraph":

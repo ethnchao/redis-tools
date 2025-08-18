@@ -29,3 +29,6 @@ vet:
 
 lint:
 	golangci-lint run --enable-all
+
+copy:
+	kubectl cp redis-tools-linux $(pod):/opt/redis-tools
